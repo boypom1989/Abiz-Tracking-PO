@@ -1,0 +1,1139 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PO Tracking System</title>
+<!-- External Libraries for Export & Charts -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.1/jspdf.plugin.autotable.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Sukhumvit Set', 'Noto Sans Thai', sans-serif;
+    background: #f5f5f0;
+    color: #2c2c2a;
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+  .container { max-width: 1400px; margin: 0 auto; padding: 24px; }
+
+  /* Header */
+  .header {
+    background: white;
+    border-radius: 12px;
+    padding: 24px 32px;
+    margin-bottom: 24px;
+    border: 0.5px solid rgba(0,0,0,0.15);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+  .header h1 { font-size: 24px; font-weight: 500; color: #2c2c2a; }
+  .header-subtitle { font-size: 13px; color: #5f5e5a; margin-top: 4px; }
+
+  .mode-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .mode-view { background: #E6F1FB; color: #0C447C; }
+  .mode-edit { background: #EAF3DE; color: #3B6D11; }
+
+  /* Tabs */
+  .tabs {
+    display: flex;
+    gap: 4px;
+    background: white;
+    border-radius: 12px;
+    padding: 6px;
+    margin-bottom: 24px;
+    border: 0.5px solid rgba(0,0,0,0.15);
+    width: fit-content;
+  }
+  .tab {
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    border: none;
+    background: transparent;
+    color: #5f5e5a;
+    transition: all 0.15s;
+    font-family: inherit;
+  }
+  .tab:hover { background: #f1efe8; }
+  .tab.active { background: #2c2c2a; color: white; }
+
+  .view { display: none; }
+  .view.active { display: block; }
+
+  /* Stats */
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+  .stat-card {
+    background: white;
+    border-radius: 12px;
+    padding: 18px 20px;
+    border: 0.5px solid rgba(0,0,0,0.15);
+  }
+  .stat-label { font-size: 13px; color: #5f5e5a; margin-bottom: 6px; }
+  .stat-value { font-size: 26px; font-weight: 500; }
+  .stat-pending { color: #BA7517; }
+  .stat-progress { color: #185FA5; }
+  .stat-shipped { color: #3B6D11; }
+  .stat-cancelled { color: #A32D2D; }
+
+  /* Charts */
+  .charts-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    gap: 20px;
+    margin-bottom: 24px;
+  }
+  .chart-card {
+    background: white;
+    border-radius: 12px;
+    padding: 24px;
+    border: 0.5px solid rgba(0,0,0,0.15);
+  }
+  .chart-title {
+    font-size: 16px;
+    font-weight: 500;
+    margin-bottom: 16px;
+    color: #2c2c2a;
+  }
+  .chart-container {
+    position: relative;
+    height: 300px;
+  }
+
+  /* Toolbar */
+  .toolbar {
+    background: white;
+    border-radius: 12px;
+    padding: 16px 20px;
+    margin-bottom: 16px;
+    border: 0.5px solid rgba(0,0,0,0.15);
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .search-box {
+    flex: 1;
+    min-width: 200px;
+    position: relative;
+  }
+  .search-box input {
+    width: 100%;
+    padding: 10px 14px 10px 38px;
+    border: 0.5px solid rgba(0,0,0,0.3);
+    border-radius: 8px;
+    font-size: 14px;
+    background: #fafaf7;
+    font-family: inherit;
+  }
+  .search-box::before {
+    content: "🔍";
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 14px;
+    opacity: 0.5;
+  }
+
+  select, input[type="text"], input[type="date"], input[type="password"] {
+    padding: 10px 14px;
+    border: 0.5px solid rgba(0,0,0,0.3);
+    border-radius: 8px;
+    font-size: 14px;
+    background: white;
+    cursor: pointer;
+    font-family: inherit;
+  }
+
+  button {
+    padding: 10px 18px;
+    border: 0.5px solid rgba(0,0,0,0.3);
+    border-radius: 8px;
+    font-size: 14px;
+    cursor: pointer;
+    background: white;
+    transition: all 0.15s;
+    font-weight: 500;
+    font-family: inherit;
+  }
+  button:hover { background: #f1efe8; }
+  button:active { transform: scale(0.98); }
+
+  .btn-primary {
+    background: #2c2c2a;
+    color: white;
+    border-color: #2c2c2a;
+  }
+  .btn-primary:hover { background: #444441; }
+
+  .btn-success {
+    background: #3B6D11;
+    color: white;
+    border-color: #3B6D11;
+  }
+  .btn-success:hover { background: #27500A; }
+
+  .btn-danger {
+    background: #A32D2D;
+    color: white;
+    border-color: #A32D2D;
+  }
+  .btn-danger:hover { background: #791F1F; }
+
+  .btn-icon {
+    padding: 6px 10px;
+    font-size: 13px;
+  }
+
+  /* Export buttons */
+  .export-group {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .btn-excel { background: #1D9E75; color: white; border-color: #1D9E75; }
+  .btn-excel:hover { background: #0F6E56; }
+  .btn-csv { background: #185FA5; color: white; border-color: #185FA5; }
+  .btn-csv:hover { background: #0C447C; }
+  .btn-pdf { background: #D85A30; color: white; border-color: #D85A30; }
+  .btn-pdf:hover { background: #993C1D; }
+
+  /* Table */
+  .table-wrapper {
+    background: white;
+    border-radius: 12px;
+    border: 0.5px solid rgba(0,0,0,0.15);
+    overflow: hidden;
+  }
+  .table-scroll { overflow-x: auto; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 900px;
+  }
+  th {
+    background: #fafaf7;
+    text-align: left;
+    padding: 14px 16px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #5f5e5a;
+    border-bottom: 0.5px solid rgba(0,0,0,0.15);
+    white-space: nowrap;
+  }
+  td {
+    padding: 14px 16px;
+    font-size: 14px;
+    border-bottom: 0.5px solid rgba(0,0,0,0.08);
+    color: #2c2c2a;
+  }
+  tbody tr:hover { background: #fafaf7; }
+  tbody tr:last-child td { border-bottom: none; }
+
+  .po-number {
+    font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+    font-weight: 500;
+    color: #185FA5;
+  }
+
+  /* Status badges */
+  .status-badge {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  .status-pending { background: #FAEEDA; color: #854F0B; }
+  .status-progress { background: #E6F1FB; color: #0C447C; }
+  .status-shipped { background: #EAF3DE; color: #27500A; }
+  .status-cancelled { background: #FCEBEB; color: #791F1F; }
+
+  .actions {
+    display: flex;
+    gap: 6px;
+    flex-wrap: nowrap;
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: #888780;
+  }
+  .empty-state-icon { font-size: 48px; margin-bottom: 12px; opacity: 0.3; }
+
+  /* Modal */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .modal-overlay.active { display: flex; }
+
+  .modal {
+    background: white;
+    border-radius: 16px;
+    padding: 32px;
+    width: 100%;
+    max-width: 520px;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+  .modal h2 {
+    font-size: 20px;
+    font-weight: 500;
+    margin-bottom: 8px;
+  }
+  .modal-subtitle {
+    font-size: 14px;
+    color: #5f5e5a;
+    margin-bottom: 24px;
+  }
+
+  .form-group { margin-bottom: 16px; }
+  .form-group label {
+    display: block;
+    font-size: 13px;
+    font-weight: 500;
+    color: #2c2c2a;
+    margin-bottom: 6px;
+  }
+  .form-group input,
+  .form-group select {
+    width: 100%;
+    padding: 10px 14px;
+    border: 0.5px solid rgba(0,0,0,0.3);
+    border-radius: 8px;
+    font-size: 14px;
+    font-family: inherit;
+    background: white;
+  }
+
+  .modal-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    margin-top: 24px;
+    padding-top: 20px;
+    border-top: 0.5px solid rgba(0,0,0,0.1);
+  }
+
+  .password-icon {
+    font-size: 32px;
+    text-align: center;
+    margin-bottom: 12px;
+  }
+
+  .alert {
+    padding: 12px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    margin-bottom: 16px;
+    display: none;
+  }
+  .alert.show { display: block; }
+  .alert-error { background: #FCEBEB; color: #791F1F; border: 0.5px solid #F09595; }
+  .alert-success { background: #EAF3DE; color: #27500A; border: 0.5px solid #C0DD97; }
+
+  .loading { text-align: center; padding: 40px; color: #888780; }
+
+  .filter-label {
+    font-size: 13px;
+    color: #5f5e5a;
+    font-weight: 500;
+    margin-right: 4px;
+  }
+
+  @media (max-width: 768px) {
+    .container { padding: 12px; }
+    .header { padding: 16px 20px; }
+    .header h1 { font-size: 20px; }
+    .modal { padding: 24px; }
+    .charts-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <!-- Header -->
+  <div class="header">
+    <div>
+      <h1>📋 PO Tracking System</h1>
+      <div class="header-subtitle">ระบบติดตามใบสั่งซื้อ (Purchase Order)</div>
+    </div>
+    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+      <span id="modeBadge" class="mode-badge mode-view">👁 โหมดดูข้อมูล</span>
+      <button id="loginBtn" class="btn-primary">🔓 เข้าสู่โหมดแก้ไข</button>
+      <button id="logoutBtn" style="display:none;" class="btn-danger">🔒 ออกจากระบบ</button>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab active" data-view="list">📋 รายการ PO</button>
+    <button class="tab" data-view="dashboard">📊 Dashboard</button>
+  </div>
+
+  <!-- Stats (show on both views) -->
+  <div class="stats">
+    <div class="stat-card">
+      <div class="stat-label">รวมทั้งหมด</div>
+      <div class="stat-value" id="statTotal">0</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">รอดำเนินการ</div>
+      <div class="stat-value stat-pending" id="statPending">0</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">กำลังผลิต</div>
+      <div class="stat-value stat-progress" id="statProgress">0</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">จัดส่งแล้ว</div>
+      <div class="stat-value stat-shipped" id="statShipped">0</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">ยกเลิก</div>
+      <div class="stat-value stat-cancelled" id="statCancelled">0</div>
+    </div>
+  </div>
+
+  <!-- LIST VIEW -->
+  <div id="viewList" class="view active">
+    <!-- Toolbar -->
+    <div class="toolbar">
+      <div class="search-box">
+        <input type="text" id="searchInput" placeholder="ค้นหา PO Number หรือชื่อลูกค้า...">
+      </div>
+      <span class="filter-label">เดือน:</span>
+      <select id="filterMonth">
+        <option value="">ทุกเดือน</option>
+        <option value="1">มกราคม</option>
+        <option value="2">กุมภาพันธ์</option>
+        <option value="3">มีนาคม</option>
+        <option value="4">เมษายน</option>
+        <option value="5">พฤษภาคม</option>
+        <option value="6">มิถุนายน</option>
+        <option value="7">กรกฎาคม</option>
+        <option value="8">สิงหาคม</option>
+        <option value="9">กันยายน</option>
+        <option value="10">ตุลาคม</option>
+        <option value="11">พฤศจิกายน</option>
+        <option value="12">ธันวาคม</option>
+      </select>
+      <span class="filter-label">ปี:</span>
+      <select id="filterYear">
+        <option value="">ทุกปี</option>
+      </select>
+      <select id="filterStatus">
+        <option value="">ทุกสถานะ</option>
+        <option value="Pending">Pending</option>
+        <option value="In Progress">In Progress</option>
+        <option value="Shipped">Shipped</option>
+        <option value="Cancelled">Cancelled</option>
+      </select>
+      <button id="addBtn" class="btn-success" style="display:none;">+ เพิ่ม PO</button>
+    </div>
+
+    <!-- Export Toolbar -->
+    <div class="toolbar">
+      <span class="filter-label">📤 Export ข้อมูลที่กรอง:</span>
+      <div class="export-group">
+        <button class="btn-excel" onclick="exportExcel()">📗 Excel</button>
+        <button class="btn-csv" onclick="exportCSV()">📄 CSV</button>
+        <button class="btn-pdf" onclick="exportPDF()">📕 PDF</button>
+      </div>
+      <span id="filterInfo" style="margin-left:auto; font-size:13px; color:#5f5e5a;"></span>
+    </div>
+
+    <!-- Table -->
+    <div class="table-wrapper">
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Date Receive PO</th>
+              <th>PO Number</th>
+              <th>Customer Name</th>
+              <th>ETD Date</th>
+              <th>PO Status</th>
+              <th id="actionsHeader" style="display:none;">การจัดการ</th>
+            </tr>
+          </thead>
+          <tbody id="poTableBody">
+            <tr><td colspan="6" class="loading">กำลังโหลดข้อมูล...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- DASHBOARD VIEW -->
+  <div id="viewDashboard" class="view">
+    <div class="toolbar">
+      <span class="filter-label">📅 ดูสถิติของ:</span>
+      <select id="dashMonth">
+        <option value="">ทุกเดือน</option>
+        <option value="1">มกราคม</option>
+        <option value="2">กุมภาพันธ์</option>
+        <option value="3">มีนาคม</option>
+        <option value="4">เมษายน</option>
+        <option value="5">พฤษภาคม</option>
+        <option value="6">มิถุนายน</option>
+        <option value="7">กรกฎาคม</option>
+        <option value="8">สิงหาคม</option>
+        <option value="9">กันยายน</option>
+        <option value="10">ตุลาคม</option>
+        <option value="11">พฤศจิกายน</option>
+        <option value="12">ธันวาคม</option>
+      </select>
+      <select id="dashYear">
+        <option value="">ทุกปี</option>
+      </select>
+    </div>
+
+    <div class="charts-grid">
+      <div class="chart-card">
+        <div class="chart-title">📊 สถานะ PO (Pie Chart)</div>
+        <div class="chart-container">
+          <canvas id="pieChart"></canvas>
+        </div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">📈 PO รายเดือน (Bar Chart)</div>
+        <div class="chart-container">
+          <canvas id="barChart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <div class="charts-grid">
+      <div class="chart-card">
+        <div class="chart-title">👥 Top 5 ลูกค้า</div>
+        <div class="chart-container">
+          <canvas id="topCustomerChart"></canvas>
+        </div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">📅 แนวโน้ม PO 6 เดือนล่าสุด</div>
+        <div class="chart-container">
+          <canvas id="trendChart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Login Modal -->
+<div id="loginModal" class="modal-overlay">
+  <div class="modal">
+    <div class="password-icon">🔐</div>
+    <h2 style="text-align:center;">เข้าสู่โหมดแก้ไข</h2>
+    <p class="modal-subtitle" style="text-align:center;">กรุณาใส่รหัสผ่านเพื่อแก้ไขข้อมูล</p>
+    <div id="loginAlert" class="alert alert-error"></div>
+    <div class="form-group">
+      <label>รหัสผ่าน</label>
+      <input type="password" id="passwordInput" placeholder="ใส่รหัสผ่าน...">
+    </div>
+    <div class="modal-actions">
+      <button onclick="closeLoginModal()">ยกเลิก</button>
+      <button class="btn-primary" onclick="checkPassword()">เข้าสู่ระบบ</button>
+    </div>
+  </div>
+</div>
+
+<!-- PO Form Modal -->
+<div id="poModal" class="modal-overlay">
+  <div class="modal">
+    <h2 id="poModalTitle">เพิ่ม PO ใหม่</h2>
+    <p class="modal-subtitle">กรอกข้อมูลให้ครบถ้วน</p>
+    <div id="poAlert" class="alert alert-error"></div>
+    <div class="form-group">
+      <label>📅 Date Receive PO</label>
+      <input type="date" id="dateReceive">
+    </div>
+    <div class="form-group">
+      <label>📄 PO Number</label>
+      <input type="text" id="poNumber" placeholder="เช่น PO-2026-001">
+    </div>
+    <div class="form-group">
+      <label>👤 Customer Name</label>
+      <input type="text" id="customerName" placeholder="ชื่อลูกค้า">
+    </div>
+    <div class="form-group">
+      <label>🚚 ETD Date</label>
+      <input type="date" id="etdDate">
+    </div>
+    <div class="form-group">
+      <label>📊 PO Status</label>
+      <select id="poStatus">
+        <option value="Pending">Pending - รอดำเนินการ</option>
+        <option value="In Progress">In Progress - กำลังผลิต</option>
+        <option value="Shipped">Shipped - จัดส่งแล้ว</option>
+        <option value="Cancelled">Cancelled - ยกเลิก</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button onclick="closePOModal()">ยกเลิก</button>
+      <button class="btn-primary" onclick="savePO()">บันทึก</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ========== CONFIG ==========
+  const ADMIN_PASSWORD = "admin1234"; // <-- เปลี่ยนรหัสผ่านที่นี่
+  const STORAGE_KEY = "po-tracking-data";
+  const USE_LOCAL_STORAGE = !window.storage; // Auto-detect: GitHub Pages uses localStorage
+
+  // ========== STATE ==========
+  let isEditMode = false;
+  let editingPOId = null;
+  let poList = [];
+  let charts = {};
+
+  // ========== STORAGE ABSTRACTION (works on Claude + GitHub Pages) ==========
+  async function storageGet(key) {
+    if (USE_LOCAL_STORAGE) {
+      const v = localStorage.getItem(key);
+      return v ? { value: v } : null;
+    }
+    return await window.storage.get(key, true);
+  }
+  async function storageSet(key, value) {
+    if (USE_LOCAL_STORAGE) {
+      localStorage.setItem(key, value);
+      return true;
+    }
+    return await window.storage.set(key, value, true);
+  }
+
+  // ========== LOAD/SAVE ==========
+  async function loadData() {
+    try {
+      const result = await storageGet(STORAGE_KEY);
+      if (result && result.value) {
+        poList = JSON.parse(result.value);
+      } else {
+        poList = [
+          { id: Date.now()+1, dateReceive: "2026-04-15", poNumber: "PO-2026-001", customerName: "ABC Trading Co., Ltd.", etdDate: "2026-05-20", status: "In Progress" },
+          { id: Date.now()+2, dateReceive: "2026-04-20", poNumber: "PO-2026-002", customerName: "XYZ Manufacturing", etdDate: "2026-05-25", status: "Pending" },
+          { id: Date.now()+3, dateReceive: "2026-04-10", poNumber: "PO-2026-003", customerName: "Global Imports Inc.", etdDate: "2026-05-10", status: "Shipped" },
+          { id: Date.now()+4, dateReceive: "2026-03-22", poNumber: "PO-2026-004", customerName: "ABC Trading Co., Ltd.", etdDate: "2026-04-30", status: "Shipped" },
+          { id: Date.now()+5, dateReceive: "2026-03-05", poNumber: "PO-2026-005", customerName: "Tech Solutions Ltd.", etdDate: "2026-04-15", status: "Shipped" },
+          { id: Date.now()+6, dateReceive: "2026-02-18", poNumber: "PO-2026-006", customerName: "XYZ Manufacturing", etdDate: "2026-03-25", status: "Cancelled" }
+        ];
+        await saveData();
+      }
+    } catch (err) {
+      console.log("First load:", err);
+      poList = [];
+    }
+    populateYearFilters();
+    renderAll();
+  }
+
+  async function saveData() {
+    try {
+      await storageSet(STORAGE_KEY, JSON.stringify(poList));
+    } catch (err) {
+      console.error("Save error:", err);
+      alert("ไม่สามารถบันทึกข้อมูลได้: " + err.message);
+    }
+  }
+
+  // ========== FILTER ==========
+  function getFilteredList() {
+    const search = document.getElementById("searchInput").value.toLowerCase();
+    const statusFilter = document.getElementById("filterStatus").value;
+    const monthFilter = document.getElementById("filterMonth").value;
+    const yearFilter = document.getElementById("filterYear").value;
+
+    let filtered = poList.filter(po => {
+      const matchSearch = !search ||
+        po.poNumber.toLowerCase().includes(search) ||
+        po.customerName.toLowerCase().includes(search);
+      const matchStatus = !statusFilter || po.status === statusFilter;
+
+      const d = new Date(po.dateReceive);
+      const matchMonth = !monthFilter || (d.getMonth() + 1) === parseInt(monthFilter);
+      const matchYear = !yearFilter || d.getFullYear() === parseInt(yearFilter);
+
+      return matchSearch && matchStatus && matchMonth && matchYear;
+    });
+
+    filtered.sort((a, b) => new Date(b.dateReceive) - new Date(a.dateReceive));
+    return filtered;
+  }
+
+  function populateYearFilters() {
+    const years = [...new Set(poList.map(p => new Date(p.dateReceive).getFullYear()))].sort((a,b) => b-a);
+    const currentYear = new Date().getFullYear();
+    if (!years.includes(currentYear)) years.unshift(currentYear);
+
+    ["filterYear", "dashYear"].forEach(id => {
+      const sel = document.getElementById(id);
+      const current = sel.value;
+      sel.innerHTML = '<option value="">ทุกปี</option>' +
+        years.map(y => `<option value="${y}">${y}</option>`).join('');
+      sel.value = current;
+    });
+  }
+
+  // ========== RENDER TABLE ==========
+  function renderTable() {
+    const tbody = document.getElementById("poTableBody");
+    const filtered = getFilteredList();
+    document.getElementById("filterInfo").textContent = `แสดง ${filtered.length} จาก ${poList.length} รายการ`;
+
+    if (filtered.length === 0) {
+      tbody.innerHTML = `
+        <tr><td colspan="6" class="empty-state">
+          <div class="empty-state-icon">📭</div>
+          <div>ไม่พบข้อมูล PO</div>
+        </td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = filtered.map(po => `
+      <tr>
+        <td>${formatDate(po.dateReceive)}</td>
+        <td><span class="po-number">${escapeHtml(po.poNumber)}</span></td>
+        <td>${escapeHtml(po.customerName)}</td>
+        <td>${formatDate(po.etdDate)}</td>
+        <td><span class="status-badge ${getStatusClass(po.status)}">${po.status}</span></td>
+        ${isEditMode ? `
+          <td>
+            <div class="actions">
+              <button class="btn-icon" onclick="editPO(${po.id})">✏️</button>
+              <button class="btn-icon btn-danger" onclick="deletePO(${po.id})">🗑️</button>
+            </div>
+          </td>` : ''}
+      </tr>
+    `).join('');
+  }
+
+  function updateStats() {
+    document.getElementById("statTotal").textContent = poList.length;
+    document.getElementById("statPending").textContent = poList.filter(p => p.status === "Pending").length;
+    document.getElementById("statProgress").textContent = poList.filter(p => p.status === "In Progress").length;
+    document.getElementById("statShipped").textContent = poList.filter(p => p.status === "Shipped").length;
+    document.getElementById("statCancelled").textContent = poList.filter(p => p.status === "Cancelled").length;
+  }
+
+  function getStatusClass(status) {
+    return { "Pending": "status-pending", "In Progress": "status-progress", "Shipped": "status-shipped", "Cancelled": "status-cancelled" }[status] || "status-pending";
+  }
+
+  function formatDate(dateStr) {
+    if (!dateStr) return "-";
+    return new Date(dateStr).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' });
+  }
+
+  function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
+  // ========== DASHBOARD CHARTS ==========
+  function getDashboardData() {
+    const monthFilter = document.getElementById("dashMonth").value;
+    const yearFilter = document.getElementById("dashYear").value;
+    return poList.filter(po => {
+      const d = new Date(po.dateReceive);
+      const matchMonth = !monthFilter || (d.getMonth() + 1) === parseInt(monthFilter);
+      const matchYear = !yearFilter || d.getFullYear() === parseInt(yearFilter);
+      return matchMonth && matchYear;
+    });
+  }
+
+  function renderCharts() {
+    const data = getDashboardData();
+
+    // Destroy old charts
+    Object.values(charts).forEach(c => c && c.destroy());
+    charts = {};
+
+    // 1. Pie Chart - Status Distribution
+    const statusCounts = {
+      "Pending": data.filter(p => p.status === "Pending").length,
+      "In Progress": data.filter(p => p.status === "In Progress").length,
+      "Shipped": data.filter(p => p.status === "Shipped").length,
+      "Cancelled": data.filter(p => p.status === "Cancelled").length
+    };
+
+    charts.pie = new Chart(document.getElementById("pieChart"), {
+      type: 'doughnut',
+      data: {
+        labels: Object.keys(statusCounts),
+        datasets: [{
+          data: Object.values(statusCounts),
+          backgroundColor: ['#EF9F27', '#378ADD', '#97C459', '#E24B4A'],
+          borderWidth: 2,
+          borderColor: '#fff'
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'bottom', labels: { padding: 15, font: { size: 13 } } }
+        }
+      }
+    });
+
+    // 2. Bar Chart - PO by Month
+    const monthCounts = Array(12).fill(0);
+    data.forEach(po => {
+      const m = new Date(po.dateReceive).getMonth();
+      monthCounts[m]++;
+    });
+    const monthNames = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+
+    charts.bar = new Chart(document.getElementById("barChart"), {
+      type: 'bar',
+      data: {
+        labels: monthNames,
+        datasets: [{
+          label: 'จำนวน PO',
+          data: monthCounts,
+          backgroundColor: '#378ADD',
+          borderRadius: 6
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+      }
+    });
+
+    // 3. Top Customers
+    const customerCounts = {};
+    data.forEach(po => {
+      customerCounts[po.customerName] = (customerCounts[po.customerName] || 0) + 1;
+    });
+    const topCustomers = Object.entries(customerCounts)
+      .sort((a,b) => b[1] - a[1])
+      .slice(0, 5);
+
+    charts.customer = new Chart(document.getElementById("topCustomerChart"), {
+      type: 'bar',
+      data: {
+        labels: topCustomers.map(c => c[0]),
+        datasets: [{
+          label: 'จำนวน PO',
+          data: topCustomers.map(c => c[1]),
+          backgroundColor: '#7F77DD',
+          borderRadius: 6
+        }]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: { x: { beginAtZero: true, ticks: { stepSize: 1 } } }
+      }
+    });
+
+    // 4. Trend - Last 6 months
+    const now = new Date();
+    const labels = [];
+    const trendData = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      labels.push(monthNames[d.getMonth()] + ' ' + (d.getFullYear() + 543).toString().slice(-2));
+      const count = poList.filter(po => {
+        const pd = new Date(po.dateReceive);
+        return pd.getMonth() === d.getMonth() && pd.getFullYear() === d.getFullYear();
+      }).length;
+      trendData.push(count);
+    }
+
+    charts.trend = new Chart(document.getElementById("trendChart"), {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'จำนวน PO',
+          data: trendData,
+          borderColor: '#1D9E75',
+          backgroundColor: 'rgba(29, 158, 117, 0.1)',
+          tension: 0.3,
+          fill: true,
+          pointRadius: 5,
+          pointBackgroundColor: '#1D9E75'
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+      }
+    });
+  }
+
+  function renderAll() {
+    updateStats();
+    renderTable();
+    if (document.getElementById("viewDashboard").classList.contains("active")) {
+      renderCharts();
+    }
+  }
+
+  // ========== EXPORT ==========
+  function getExportData() {
+    return getFilteredList().map(po => ({
+      'Date Receive': po.dateReceive,
+      'PO Number': po.poNumber,
+      'Customer Name': po.customerName,
+      'ETD Date': po.etdDate,
+      'Status': po.status
+    }));
+  }
+
+  function exportExcel() {
+    const data = getExportData();
+    if (data.length === 0) { alert("ไม่มีข้อมูลสำหรับ Export"); return; }
+    const ws = XLSX.utils.json_to_sheet(data);
+    ws['!cols'] = [{wch:15},{wch:18},{wch:30},{wch:15},{wch:15}];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "PO List");
+    XLSX.writeFile(wb, `PO_List_${getDateStamp()}.xlsx`);
+  }
+
+  function exportCSV() {
+    const data = getExportData();
+    if (data.length === 0) { alert("ไม่มีข้อมูลสำหรับ Export"); return; }
+    const headers = Object.keys(data[0]);
+    const csv = [
+      headers.join(','),
+      ...data.map(row => headers.map(h => `"${(row[h]||'').toString().replace(/"/g,'""')}"`).join(','))
+    ].join('\n');
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `PO_List_${getDateStamp()}.csv`;
+    link.click();
+  }
+
+  function exportPDF() {
+    const data = getExportData();
+    if (data.length === 0) { alert("ไม่มีข้อมูลสำหรับ Export"); return; }
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    doc.setFontSize(16);
+    doc.text("PO Tracking Report", 14, 15);
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    doc.text(`Generated: ${new Date().toLocaleString('en-US')}`, 14, 22);
+    doc.text(`Total: ${data.length} records`, 14, 27);
+
+    doc.autoTable({
+      startY: 32,
+      head: [['Date Receive', 'PO Number', 'Customer', 'ETD Date', 'Status']],
+      body: data.map(row => [row['Date Receive'], row['PO Number'], row['Customer Name'], row['ETD Date'], row['Status']]),
+      headStyles: { fillColor: [44, 44, 42], textColor: 255 },
+      alternateRowStyles: { fillColor: [250, 250, 247] },
+      styles: { fontSize: 9, cellPadding: 4 }
+    });
+
+    doc.save(`PO_List_${getDateStamp()}.pdf`);
+  }
+
+  function getDateStamp() {
+    const d = new Date();
+    return `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
+  }
+
+  // ========== AUTH ==========
+  document.getElementById("loginBtn").addEventListener("click", () => {
+    document.getElementById("loginModal").classList.add("active");
+    document.getElementById("passwordInput").focus();
+  });
+  document.getElementById("logoutBtn").addEventListener("click", () => {
+    isEditMode = false;
+    updateUIMode();
+  });
+
+  function closeLoginModal() {
+    document.getElementById("loginModal").classList.remove("active");
+    document.getElementById("passwordInput").value = "";
+    document.getElementById("loginAlert").classList.remove("show");
+  }
+
+  function checkPassword() {
+    const pwd = document.getElementById("passwordInput").value;
+    const alert = document.getElementById("loginAlert");
+    if (pwd === ADMIN_PASSWORD) {
+      isEditMode = true;
+      updateUIMode();
+      closeLoginModal();
+    } else {
+      alert.textContent = "❌ รหัสผ่านไม่ถูกต้อง";
+      alert.classList.add("show");
+    }
+  }
+
+  function updateUIMode() {
+    const badge = document.getElementById("modeBadge");
+    if (isEditMode) {
+      badge.textContent = "✏️ โหมดแก้ไข";
+      badge.className = "mode-badge mode-edit";
+      document.getElementById("loginBtn").style.display = "none";
+      document.getElementById("logoutBtn").style.display = "inline-flex";
+      document.getElementById("addBtn").style.display = "inline-flex";
+      document.getElementById("actionsHeader").style.display = "table-cell";
+    } else {
+      badge.textContent = "👁 โหมดดูข้อมูล";
+      badge.className = "mode-badge mode-view";
+      document.getElementById("loginBtn").style.display = "inline-flex";
+      document.getElementById("logoutBtn").style.display = "none";
+      document.getElementById("addBtn").style.display = "none";
+      document.getElementById("actionsHeader").style.display = "none";
+    }
+    renderTable();
+  }
+
+  // ========== CRUD ==========
+  document.getElementById("addBtn").addEventListener("click", () => {
+    editingPOId = null;
+    document.getElementById("poModalTitle").textContent = "เพิ่ม PO ใหม่";
+    document.getElementById("dateReceive").value = new Date().toISOString().split('T')[0];
+    document.getElementById("poNumber").value = "";
+    document.getElementById("customerName").value = "";
+    document.getElementById("etdDate").value = "";
+    document.getElementById("poStatus").value = "Pending";
+    document.getElementById("poAlert").classList.remove("show");
+    document.getElementById("poModal").classList.add("active");
+  });
+
+  function editPO(id) {
+    const po = poList.find(p => p.id === id);
+    if (!po) return;
+    editingPOId = id;
+    document.getElementById("poModalTitle").textContent = "แก้ไขข้อมูล PO";
+    document.getElementById("dateReceive").value = po.dateReceive;
+    document.getElementById("poNumber").value = po.poNumber;
+    document.getElementById("customerName").value = po.customerName;
+    document.getElementById("etdDate").value = po.etdDate;
+    document.getElementById("poStatus").value = po.status;
+    document.getElementById("poAlert").classList.remove("show");
+    document.getElementById("poModal").classList.add("active");
+  }
+
+  function closePOModal() {
+    document.getElementById("poModal").classList.remove("active");
+  }
+
+  async function savePO() {
+    const dateReceive = document.getElementById("dateReceive").value;
+    const poNumber = document.getElementById("poNumber").value.trim();
+    const customerName = document.getElementById("customerName").value.trim();
+    const etdDate = document.getElementById("etdDate").value;
+    const status = document.getElementById("poStatus").value;
+    const alert = document.getElementById("poAlert");
+
+    if (!dateReceive || !poNumber || !customerName || !etdDate) {
+      alert.textContent = "⚠️ กรุณากรอกข้อมูลให้ครบทุกช่อง";
+      alert.classList.add("show");
+      return;
+    }
+
+    if (editingPOId) {
+      const idx = poList.findIndex(p => p.id === editingPOId);
+      if (idx !== -1) poList[idx] = { id: editingPOId, dateReceive, poNumber, customerName, etdDate, status };
+    } else {
+      if (poList.some(p => p.poNumber.toLowerCase() === poNumber.toLowerCase())) {
+        alert.textContent = "⚠️ PO Number นี้มีอยู่แล้ว";
+        alert.classList.add("show");
+        return;
+      }
+      poList.push({ id: Date.now(), dateReceive, poNumber, customerName, etdDate, status });
+    }
+
+    await saveData();
+    populateYearFilters();
+    renderAll();
+    closePOModal();
+  }
+
+  async function deletePO(id) {
+    const po = poList.find(p => p.id === id);
+    if (!po) return;
+    if (!confirm(`ต้องการลบ PO "${po.poNumber}" ใช่หรือไม่?`)) return;
+    poList = poList.filter(p => p.id !== id);
+    await saveData();
+    renderAll();
+  }
+
+  // ========== TABS ==========
+  document.querySelectorAll(".tab").forEach(tab => {
+    tab.addEventListener("click", () => {
+      document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+      document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
+      tab.classList.add("active");
+      document.getElementById("view" + tab.dataset.view.charAt(0).toUpperCase() + tab.dataset.view.slice(1)).classList.add("active");
+      if (tab.dataset.view === "dashboard") setTimeout(renderCharts, 50);
+    });
+  });
+
+  // ========== EVENTS ==========
+  ["searchInput", "filterStatus", "filterMonth", "filterYear"].forEach(id => {
+    document.getElementById(id).addEventListener("input", renderTable);
+    document.getElementById(id).addEventListener("change", renderTable);
+  });
+  ["dashMonth", "dashYear"].forEach(id => {
+    document.getElementById(id).addEventListener("change", renderCharts);
+  });
+
+  document.getElementById("passwordInput").addEventListener("keypress", (e) => {
+    if (e.key === "Enter") checkPassword();
+  });
+
+  document.querySelectorAll(".modal-overlay").forEach(overlay => {
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) overlay.classList.remove("active");
+    });
+  });
+
+  // ========== INIT ==========
+  loadData();
+</script>
+
+</body>
+</html>
