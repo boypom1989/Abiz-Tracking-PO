@@ -251,6 +251,54 @@
   .loading { text-align: center; padding: 40px; color: #888780; }
   .filter-label { font-size: 13px; color: #5f5e5a; font-weight: 500; margin-right: 4px; }
 
+  /* File attachment */
+  .file-link {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 4px 10px; border-radius: 999px;
+    background: #FCEBEB; color: #791F1F;
+    font-size: 12px; font-weight: 500;
+    text-decoration: none; border: 0.5px solid #F09595;
+    transition: all 0.15s;
+  }
+  .file-link:hover { background: #F09595; }
+  .file-empty { font-size: 12px; color: #888780; font-style: italic; }
+
+  .file-upload-area {
+    border: 2px dashed rgba(0,0,0,0.2); border-radius: 8px;
+    padding: 16px; text-align: center; cursor: pointer;
+    transition: all 0.15s; background: #fafaf7;
+  }
+  .file-upload-area:hover { border-color: #185FA5; background: #E6F1FB; }
+  .file-upload-area.has-file {
+    border-style: solid; border-color: #C0DD97;
+    background: #EAF3DE; text-align: left;
+  }
+  .file-info {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 13px;
+  }
+  .file-icon { font-size: 24px; }
+  .file-details { flex: 1; min-width: 0; }
+  .file-name {
+    font-weight: 500; color: #2c2c2a;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .file-size { color: #5f5e5a; font-size: 12px; }
+  .upload-hint { color: #5f5e5a; font-size: 13px; }
+  .upload-hint strong { color: #185FA5; }
+  .file-actions { display: flex; gap: 6px; }
+
+  .upload-progress {
+    width: 100%; height: 4px; background: #eee;
+    border-radius: 2px; margin-top: 8px; overflow: hidden;
+    display: none;
+  }
+  .upload-progress.show { display: block; }
+  .upload-progress-bar {
+    height: 100%; background: #185FA5;
+    width: 0%; transition: width 0.3s;
+  }
+
   /* Toast notifications */
   .toast {
     position: fixed; bottom: 24px; right: 24px;
@@ -365,11 +413,12 @@
               <th>Customer Name</th>
               <th>ETD Date</th>
               <th>PO Status</th>
+              <th>📎 ไฟล์แนบ</th>
               <th id="actionsHeader" style="display:none;">การจัดการ</th>
             </tr>
           </thead>
           <tbody id="poTableBody">
-            <tr><td colspan="6" class="loading">กำลังโหลดข้อมูล...</td></tr>
+            <tr><td colspan="7" class="loading">กำลังโหลดข้อมูล...</td></tr>
           </tbody>
         </table>
       </div>
@@ -462,6 +511,32 @@
         <option value="Cancelled">Cancelled - ยกเลิก</option>
       </select>
     </div>
+    <div class="form-group" id="fileUploadSection" style="display:none;">
+      <label>📎 ไฟล์แนบ PDF <span style="color:#888780; font-weight:400;">(สูงสุด 5 MB)</span></label>
+      <div id="fileUploadArea" class="file-upload-area" onclick="document.getElementById('fileInput').click()">
+        <div id="fileUploadEmpty" class="upload-hint">
+          📁 <strong>คลิกเพื่อเลือกไฟล์ PDF</strong><br>
+          <span style="font-size:12px;">หรือลากไฟล์มาวางที่นี่</span>
+        </div>
+        <div id="fileUploadHasFile" style="display:none;">
+          <div class="file-info">
+            <span class="file-icon">📄</span>
+            <div class="file-details">
+              <div class="file-name" id="uploadedFileName">filename.pdf</div>
+              <div class="file-size" id="uploadedFileSize">0 KB</div>
+            </div>
+            <div class="file-actions">
+              <button type="button" class="btn-icon" onclick="event.stopPropagation(); viewCurrentFile()" id="viewFileBtn" style="display:none;">👁️ ดู</button>
+              <button type="button" class="btn-icon btn-danger" onclick="event.stopPropagation(); removeFile()">🗑️</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div id="uploadProgress" class="upload-progress">
+        <div class="upload-progress-bar" id="uploadProgressBar"></div>
+      </div>
+      <input type="file" id="fileInput" accept=".pdf,application/pdf" style="display:none;">
+    </div>
     <div class="modal-actions">
       <button onclick="closePOModal()">ยกเลิก</button>
       <button id="savePOBtn" class="btn-primary" onclick="savePO()">บันทึก</button>
@@ -483,8 +558,10 @@
   let editingPOId = null;
   let poList = [];
   let charts = {};
-  let API_URL = localStorage.getItem(API_URL_KEY) || "https://script.google.com/macros/s/AKfycby08JKm-uLuxPZS4mSxrOwLJGZz1xChCr6zUVpnPLGBRZMhJp6XG5fcwfzp8UMiDWM1/exec";
+  let API_URL = localStorage.getItem(API_URL_KEY) || "";
   let autoRefreshTimer = null;
+  let pendingFile = null; // File object waiting to be uploaded
+  let currentFileInfo = null; // {fileId, fileName} of currently attached file
 
   // ========== TOAST ==========
   function showToast(msg, type = "") {
@@ -532,7 +609,7 @@
       document.getElementById("setupBanner").style.display = "block";
       setConnStatus("offline", "ยังไม่ได้ตั้งค่า");
       document.getElementById("poTableBody").innerHTML = `
-        <tr><td colspan="6" class="empty-state">
+        <tr><td colspan="7" class="empty-state">
           <div class="empty-state-icon">⚙️</div>
           <div>กรุณาตั้งค่า Google Sheets ก่อนใช้งาน</div>
           <button class="btn-primary" style="margin-top:16px;" onclick="openSettingsModal()">ตั้งค่าตอนนี้</button>
@@ -557,7 +634,7 @@
       setConnStatus("offline", "✗ ไม่สามารถเชื่อมต่อ");
       if (isManual) showToast("เชื่อมต่อไม่สำเร็จ: " + err.message, "error");
       document.getElementById("poTableBody").innerHTML = `
-        <tr><td colspan="6" class="empty-state">
+        <tr><td colspan="7" class="empty-state">
           <div class="empty-state-icon">⚠️</div>
           <div>ไม่สามารถโหลดข้อมูลได้</div>
           <div style="font-size:12px; color:#A32D2D; margin-top:8px;">${err.message}</div>
@@ -672,7 +749,7 @@
     document.getElementById("filterInfo").textContent = `แสดง ${filtered.length} จาก ${poList.length} รายการ`;
 
     if (filtered.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="6" class="empty-state">
+      tbody.innerHTML = `<tr><td colspan="7" class="empty-state">
         <div class="empty-state-icon">📭</div><div>ไม่พบข้อมูล PO</div></td></tr>`;
       return;
     }
@@ -684,11 +761,20 @@
         <td>${escapeHtml(po.customerName)}</td>
         <td>${formatDate(po.etdDate)}</td>
         <td><span class="status-badge ${getStatusClass(po.status)}">${po.status}</span></td>
+        <td>${renderFileCell(po)}</td>
         ${isEditMode ? `<td><div class="actions">
           <button class="btn-icon" onclick="editPO(${po.id})">✏️</button>
           <button class="btn-icon btn-danger" onclick="deletePO(${po.id})">🗑️</button>
         </div></td>` : ''}
       </tr>`).join('');
+  }
+
+  function renderFileCell(po) {
+    if (po.fileId && po.fileName) {
+      const url = `https://drive.google.com/file/d/${po.fileId}/view`;
+      return `<a href="${url}" target="_blank" class="file-link" title="${escapeHtml(po.fileName)}">📄 เปิด PDF</a>`;
+    }
+    return `<span class="file-empty">ไม่มีไฟล์</span>`;
   }
 
   function updateStats() {
@@ -909,6 +995,9 @@
     document.getElementById("etdDate").value = "";
     document.getElementById("poStatus").value = "Pending";
     document.getElementById("poAlert").classList.remove("show");
+    // File upload not available until PO is created
+    document.getElementById("fileUploadSection").style.display = "none";
+    resetFileUI();
     document.getElementById("poModal").classList.add("active");
   });
 
@@ -923,6 +1012,13 @@
     document.getElementById("etdDate").value = po.etdDate;
     document.getElementById("poStatus").value = po.status;
     document.getElementById("poAlert").classList.remove("show");
+    // Show file upload section when editing
+    document.getElementById("fileUploadSection").style.display = "block";
+    resetFileUI();
+    if (po.fileId && po.fileName) {
+      currentFileInfo = { fileId: po.fileId, fileName: po.fileName };
+      showFileUI(po.fileName, null, true);
+    }
     document.getElementById("poModal").classList.add("active");
   }
 
@@ -956,13 +1052,22 @@
 
     try {
       const data = { dateReceive, poNumber, customerName, etdDate, status };
+      let targetId = editingPOId;
+
       if (editingPOId) {
         await apiPost("update", { id: editingPOId, data });
-        showToast("✓ แก้ไขข้อมูลสำเร็จ", "success");
       } else {
-        await apiPost("create", { data });
-        showToast("✓ เพิ่ม PO สำเร็จ", "success");
+        const result = await apiPost("create", { data });
+        targetId = result.id;
       }
+
+      // Upload file if pending
+      if (pendingFile) {
+        btn.textContent = "กำลังอัปโหลดไฟล์...";
+        await uploadFileToServer(targetId, pendingFile);
+      }
+
+      showToast(editingPOId ? "✓ แก้ไขสำเร็จ" : "✓ เพิ่ม PO สำเร็จ", "success");
       closePOModal();
       await loadData(false);
     } catch (err) {
@@ -972,6 +1077,110 @@
       btn.disabled = false;
       btn.textContent = "บันทึก";
     }
+  }
+
+  // ========== FILE UPLOAD ==========
+  function resetFileUI() {
+    pendingFile = null;
+    currentFileInfo = null;
+    document.getElementById("fileInput").value = "";
+    document.getElementById("fileUploadEmpty").style.display = "block";
+    document.getElementById("fileUploadHasFile").style.display = "none";
+    document.getElementById("fileUploadArea").classList.remove("has-file");
+    document.getElementById("uploadProgress").classList.remove("show");
+    document.getElementById("uploadProgressBar").style.width = "0%";
+  }
+
+  function showFileUI(fileName, fileSize, hasViewBtn) {
+    document.getElementById("fileUploadEmpty").style.display = "none";
+    document.getElementById("fileUploadHasFile").style.display = "block";
+    document.getElementById("fileUploadArea").classList.add("has-file");
+    document.getElementById("uploadedFileName").textContent = fileName;
+    document.getElementById("uploadedFileSize").textContent = fileSize ? formatFileSize(fileSize) : "ไฟล์ที่อัปโหลดไว้";
+    document.getElementById("viewFileBtn").style.display = hasViewBtn ? "inline-flex" : "none";
+  }
+
+  function formatFileSize(bytes) {
+    if (bytes < 1024) return bytes + " B";
+    if (bytes < 1024*1024) return (bytes/1024).toFixed(1) + " KB";
+    return (bytes/1024/1024).toFixed(2) + " MB";
+  }
+
+  function viewCurrentFile() {
+    if (currentFileInfo && currentFileInfo.fileId) {
+      window.open(`https://drive.google.com/file/d/${currentFileInfo.fileId}/view`, "_blank");
+    }
+  }
+
+  async function removeFile() {
+    if (pendingFile) {
+      // Just remove pending file (not yet uploaded)
+      resetFileUI();
+      return;
+    }
+    if (currentFileInfo && editingPOId) {
+      if (!confirm("ต้องการลบไฟล์แนบนี้ใช่หรือไม่?")) return;
+      try {
+        await apiPost("deleteFile", { id: editingPOId });
+        showToast("✓ ลบไฟล์สำเร็จ", "success");
+        resetFileUI();
+        // Update local data
+        const po = poList.find(p => p.id == editingPOId);
+        if (po) { po.fileId = ""; po.fileName = ""; }
+      } catch (err) {
+        showToast("✗ ลบไฟล์ไม่สำเร็จ: " + err.message, "error");
+      }
+    }
+  }
+
+  function handleFileSelect(file) {
+    if (!file) return;
+
+    // Validate type
+    if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
+      showToast("⚠️ กรุณาเลือกไฟล์ PDF เท่านั้น", "error");
+      return;
+    }
+
+    // Validate size (5MB)
+    const MAX_SIZE = 5 * 1024 * 1024;
+    if (file.size > MAX_SIZE) {
+      showToast("⚠️ ไฟล์ใหญ่เกินไป (สูงสุด 5 MB)", "error");
+      return;
+    }
+
+    pendingFile = file;
+    currentFileInfo = null;
+    showFileUI(file.name, file.size, false);
+  }
+
+  async function uploadFileToServer(poId, file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = async () => {
+        try {
+          // Get base64 part only (remove "data:application/pdf;base64," prefix)
+          const base64 = reader.result.split(",")[1];
+
+          document.getElementById("uploadProgress").classList.add("show");
+          document.getElementById("uploadProgressBar").style.width = "50%";
+
+          await apiPost("uploadFile", {
+            id: poId,
+            fileName: file.name,
+            fileData: base64,
+            mimeType: file.type || "application/pdf"
+          });
+
+          document.getElementById("uploadProgressBar").style.width = "100%";
+          resolve();
+        } catch (err) {
+          reject(err);
+        }
+      };
+      reader.onerror = () => reject(new Error("ไม่สามารถอ่านไฟล์ได้"));
+      reader.readAsDataURL(file);
+    });
   }
 
   async function deletePO(id) {
@@ -1011,6 +1220,39 @@
   });
   document.querySelectorAll(".modal-overlay").forEach(overlay => {
     overlay.addEventListener("click", e => { if (e.target === overlay) overlay.classList.remove("active"); });
+  });
+
+  // File input change
+  document.getElementById("fileInput").addEventListener("change", e => {
+    if (e.target.files && e.target.files[0]) {
+      handleFileSelect(e.target.files[0]);
+    }
+  });
+
+  // Drag and drop
+  const dropArea = document.getElementById("fileUploadArea");
+  ["dragenter","dragover"].forEach(evt => {
+    dropArea.addEventListener(evt, e => {
+      e.preventDefault();
+      e.stopPropagation();
+      dropArea.style.borderColor = "#185FA5";
+      dropArea.style.background = "#E6F1FB";
+    });
+  });
+  ["dragleave","drop"].forEach(evt => {
+    dropArea.addEventListener(evt, e => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!dropArea.classList.contains("has-file")) {
+        dropArea.style.borderColor = "";
+        dropArea.style.background = "";
+      }
+    });
+  });
+  dropArea.addEventListener("drop", e => {
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      handleFileSelect(e.dataTransfer.files[0]);
+    }
   });
 
   // ========== INIT ==========
